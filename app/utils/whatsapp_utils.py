@@ -25,9 +25,52 @@ def get_text_message_input(recipient, text):
     )
 
 
-def generate_response(response):
-    # Return text in uppercase
-    return response.upper()
+def generate_response(response,name,wa_id):
+    # convert message to lower case
+    response=response.lower()
+    print("response:",response)
+
+    try:
+        if all(item in response for item in ["all", "site"]):
+            payload = {
+                "wa_id" : str(wa_id)
+            }
+            # try:
+            res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/sites",json=payload, timeout=15)
+            resJson= res.json()
+            sites = resJson["sites"]
+            ans=""
+            for item in sites:
+                ans+=(item["site"]+"\n")
+            return ans
+            # except Exception as e:
+            #     return e
+        elif response.count(" ")==0 and all(item in response for item in ["www."]):
+            response= response.lstrip("https://")
+            response= response.lstrip("http://")
+            payload= {
+                "wa_id" : str(wa_id),
+                "site": str(response)
+            }
+            # try:
+            res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/password",json=payload, timeout=15)
+            resJson= res.json()
+            return f"*Site:* {resJson['site']}\n*Username:* ```{resJson['username']}```\n*Password:* ```{resJson['password']}```"
+            # except Exception as e:
+            #     return e
+        else:
+            return "hello i am static"
+    except requests.Timeout:
+        return "Timeout occured in getting response from backend"
+    except Exception  as e:
+        if res.status_code >= 400:  # Check for error status code (adjust if needed)
+            try:
+                error_data = res.json()  # Attempt to parse error JSON
+                return f"Error: {error_data.get('error', 'Unknown error')}"  # Use get to handle missing 'error' key
+            except:
+                    return "An error occurred while processing your request."  # Fallback for non-JSON errors
+        else:
+            raise  # Re-raise the exception for unexpected errors
 
 
 def send_message(data):
@@ -76,6 +119,7 @@ def process_text_for_whatsapp(text):
 
 
 def process_whatsapp_message(body):
+    # print(body["entry"][0]["changes"][0]["value"]["contacts"])
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
     name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
 
@@ -83,13 +127,14 @@ def process_whatsapp_message(body):
     message_body = message["text"]["body"]
 
     # TODO: implement custom function here
-    response = generate_response(message_body)
+    response = generate_response(message_body,name,wa_id)
 
     # OpenAI Integration
     # response = generate_response(message_body, wa_id, name)
     # response = process_text_for_whatsapp(response)
+    reciepent_id= "+" + wa_id
 
-    data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response)
+    data = get_text_message_input(reciepent_id, response)
     send_message(data)
 
 
