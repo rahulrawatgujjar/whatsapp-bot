@@ -2,6 +2,8 @@ import logging
 from flask import current_app, jsonify
 import json
 import requests
+import datetime
+from .token_utils import generate_token
 
 # from app.services.openai_service import generate_response
 import re
@@ -28,49 +30,61 @@ def get_text_message_input(recipient, text):
 def generate_response(response,name,wa_id):
     # convert message to lower case
     response=response.lower()
-    print("response:",response)
-
+    print("response:",response,datetime.datetime.now())
+    res=None
     try:
         if all(item in response for item in ["all", "site"]):
-            payload = {
-                "wa_id" : str(wa_id)
+            data = {
+                "wa_id" : wa_id,
+                "message": response
             }
-            # try:
-            res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/sites",json=payload, timeout=15)
-            resJson= res.json()
-            sites = resJson["sites"]
-            ans=""
-            for item in sites:
-                ans+=(item["site"]+"\n")
-            return ans
-            # except Exception as e:
-            #     return e
+            payload = f'{wa_id}:{response}'
+            token = generate_token(payload)
+            headers = {
+                'Authorization': f'Bearer {token}'
+            }
+            try:
+                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/sites",json=data, headers=headers, timeout=15)
+                res.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                return err.response.json().get("error")
+            except requests.exceptions.RequestException as err:
+                return err
+            else:
+                resJson= res.json()
+                sites = resJson["sites"]
+                ans=""
+                for item in sites:
+                    ans+=(item["site"]+"\n")
+                return ans
         elif response.count(" ")==0 and all(item in response for item in ["www."]):
             response= response.lstrip("https://")
             response= response.lstrip("http://")
-            payload= {
-                "wa_id" : str(wa_id),
-                "site": str(response)
+            data= {
+                "wa_id" : wa_id,
+                "site": response
             }
-            # try:
-            res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/password",json=payload, timeout=15)
-            resJson= res.json()
-            return f"*Site:* {resJson['site']}\n*Username:* ```{resJson['username']}```\n*Password:* ```{resJson['password']}```"
-            # except Exception as e:
-            #     return e
+            payload = f'{wa_id}:{response}'
+            token = generate_token(payload)
+            headers = {
+                'Authorization': f'Bearer {token}'
+            }
+            try:
+                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/password",json=data, headers=headers, timeout=15)
+                res.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                return err.response.json().get("error")
+            except requests.exceptions.RequestException as err:
+                return err
+            else:
+                resJson= res.json()
+                return f"*Site:* {resJson['site']}\n*Username:* ```{resJson['username']}```\n*Password:* ```{resJson['password']}```"
         else:
             return "hello i am static"
     except requests.Timeout:
-        return "Timeout occured in getting response from backend"
+        return "Timeout occured in getting response from backend" 
     except Exception  as e:
-        if res.status_code >= 400:  # Check for error status code (adjust if needed)
-            try:
-                error_data = res.json()  # Attempt to parse error JSON
-                return f"Error: {error_data.get('error', 'Unknown error')}"  # Use get to handle missing 'error' key
-            except:
-                    return "An error occurred while processing your request."  # Fallback for non-JSON errors
-        else:
-            raise  # Re-raise the exception for unexpected errors
+        return e
 
 
 def send_message(data):

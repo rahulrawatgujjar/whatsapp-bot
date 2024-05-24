@@ -1,11 +1,11 @@
 import sys
 import os
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 import logging
 
 
 def load_configurations(app):
-    # load_dotenv()
+    load_dotenv()
     app.config["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
     app.config["YOUR_PHONE_NUMBER"] = os.getenv("YOUR_PHONE_NUMBER")
     app.config["APP_ID"] = os.getenv("APP_ID")
@@ -15,6 +15,7 @@ def load_configurations(app):
     app.config["PHONE_NUMBER_ID"] = os.getenv("PHONE_NUMBER_ID")
     app.config["VERIFY_TOKEN"] = os.getenv("VERIFY_TOKEN")
     app.config["BACKEND_URL"] = os.getenv("BACKEND_URL")
+    app.config["FLASK_SECRET_KEY"]= os.getenv("FLASK_SECRET_KEY")
 
 
 def configure_logging():
