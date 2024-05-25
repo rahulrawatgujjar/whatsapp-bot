@@ -30,33 +30,38 @@ def get_text_message_input(recipient, text):
 def generate_response(response,name,wa_id):
     # convert message to lower case
     response=response.lower()
-    print("response:",response,datetime.datetime.now())
-    res=None
+    print("\nresponse:",response)
     try:
         if all(item in response for item in ["all", "site"]):
             data = {
                 "wa_id" : wa_id,
                 "message": response
             }
-            payload = f'{wa_id}:{response}'
-            token = generate_token(payload)
+            payload = f"{wa_id}:{response}"
+            try:
+                token = generate_token(payload)
+            except Exception as e:
+                return "Unable to generate token\n"+str(e)
             headers = {
                 'Authorization': f'Bearer {token}'
             }
             try:
-                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/sites",json=data, headers=headers, timeout=15)
+                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/sites",json=data, headers=headers, timeout=90)
                 res.raise_for_status()
-            except requests.exceptions.HTTPError as err:
-                return err.response.json().get("error")
-            except requests.exceptions.RequestException as err:
-                return err
-            else:
                 resJson= res.json()
                 sites = resJson["sites"]
                 ans=""
                 for item in sites:
                     ans+=(item["site"]+"\n")
                 return ans
+            except requests.exceptions.Timeout:
+                return "Timeout occured in getting response from backend" 
+            except requests.exceptions.HTTPError as err:
+                return err.response.json().get("error","unknown http error")
+            except requests.exceptions.RequestException as err:
+                return "Requests exceptions\n"+str(err)
+            except Exception as e:
+                return "All other exceptions\n"+str(e)
         elif response.count(" ")==0 and all(item in response for item in ["www."]):
             response= response.lstrip("https://")
             response= response.lstrip("http://")
@@ -64,27 +69,32 @@ def generate_response(response,name,wa_id):
                 "wa_id" : wa_id,
                 "site": response
             }
-            payload = f'{wa_id}:{response}'
-            token = generate_token(payload)
+            payload = f"{wa_id}:{response}"
+            try:
+                token = generate_token(payload)
+            except Exception as e:
+                return "Unable to generate token\n"+str(e)
             headers = {
                 'Authorization': f'Bearer {token}'
             }
             try:
-                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/password",json=data, headers=headers, timeout=15)
+                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/password",json=data, headers=headers, timeout=90)
                 res.raise_for_status()
-            except requests.exceptions.HTTPError as err:
-                return err.response.json().get("error")
-            except requests.exceptions.RequestException as err:
-                return err
-            else:
                 resJson= res.json()
                 return f"*Site:* {resJson['site']}\n*Username:* ```{resJson['username']}```\n*Password:* ```{resJson['password']}```"
+            except requests.exceptions.Timeout:
+                return "Timeout occured in getting response from backend" 
+            except requests.exceptions.HTTPError as err:
+                return err.response.json().get("error","unknown http error")
+            except requests.exceptions.RequestException as err:
+                return "Requests exceptions\n"+str(err)
+            except Exception as e:
+                return "All other exceptions\n"+str(e)
         else:
             return "hello i am static"
-    except requests.Timeout:
-        return "Timeout occured in getting response from backend" 
     except Exception  as e:
-        return e
+        return "all other outter exceptions\n" +str(e)
+    
 
 
 def send_message(data):

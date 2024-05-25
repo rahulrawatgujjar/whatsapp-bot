@@ -1,5 +1,4 @@
 from cryptography.fernet import Fernet
-import base64
 
 def get_secret_key():
     from flask import current_app
