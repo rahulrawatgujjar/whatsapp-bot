@@ -16,6 +16,7 @@ def load_configurations(app):
     app.config["VERIFY_TOKEN"] = os.getenv("VERIFY_TOKEN")
     app.config["BACKEND_URL"] = os.getenv("BACKEND_URL")
     app.config["FLASK_SECRET_KEY"]= os.getenv("FLASK_SECRET_KEY")
+    app.config["RUN_URL"]= os.getenv("RUN_URL")
 
 
 def configure_logging():

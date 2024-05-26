@@ -31,70 +31,105 @@ def generate_response(response,name,wa_id):
     # convert message to lower case
     response=response.lower()
     print("\nresponse:",response)
-    try:
-        if all(item in response for item in ["all", "site"]):
-            data = {
-                "wa_id" : wa_id,
-                "message": response
-            }
-            payload = f"{wa_id}:{response}"
+
+    test= requests.get(f"{current_app.config['BACKEND_URL']}/login", timeout=60)
+    print(test.status_code)
+    if test.status_code == 200:
+        print("\nbackend connected")
+    else:
+        print("\nbackend not connected")
+        return f"- Visit *{current_app.config['BACKEND_URL']}* so that server becomes active.\n- Wait until page loads and then come back here."
+
+    if all(item in response for item in ["all", "site"]):
+        data = {
+            "wa_id" : wa_id,
+            "message": response
+        }
+        payload = f"{wa_id}:{response}"
+        try:
+            token = generate_token(payload)
+        except Exception as e:
+            return "Unable to generate token\n"+str(e)
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        try:
+            res = requests.post(f"{current_app.config['BACKEND_URL']}/api/whatsapp/sites",json=data, headers=headers, timeout=60)
+            res.raise_for_status()
+        except requests.exceptions.Timeout:
+            return "Timeout occured in getting response from backend"
+        except requests.exceptions.HTTPError as err:
             try:
-                token = generate_token(payload)
+                return err.response.json().get("error", "unknown HTTP error")
+            except ValueError:
+                return f"Value error in handling http error\n{err.response.text}"
             except Exception as e:
-                return "Unable to generate token\n"+str(e)
-            headers = {
-                'Authorization': f'Bearer {token}'
-            }
-            try:
-                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/sites",json=data, headers=headers, timeout=90)
-                res.raise_for_status()
-                resJson= res.json()
-                sites = resJson["sites"]
-                ans=""
-                for item in sites:
-                    ans+=(item["site"]+"\n")
-                return ans
-            except requests.exceptions.Timeout:
-                return "Timeout occured in getting response from backend" 
-            except requests.exceptions.HTTPError as err:
-                return err.response.json().get("error","unknown http error")
-            except requests.exceptions.RequestException as err:
-                return "Requests exceptions\n"+str(err)
-            except Exception as e:
-                return "All other exceptions\n"+str(e)
-        elif response.count(" ")==0 and all(item in response for item in ["www."]):
-            response= response.lstrip("https://")
-            response= response.lstrip("http://")
-            data= {
-                "wa_id" : wa_id,
-                "site": response
-            }
-            payload = f"{wa_id}:{response}"
-            try:
-                token = generate_token(payload)
-            except Exception as e:
-                return "Unable to generate token\n"+str(e)
-            headers = {
-                'Authorization': f'Bearer {token}'
-            }
-            try:
-                res = requests.post(current_app.config['BACKEND_URL']+"/api/whatsapp/password",json=data, headers=headers, timeout=90)
-                res.raise_for_status()
-                resJson= res.json()
-                return f"*Site:* {resJson['site']}\n*Username:* ```{resJson['username']}```\n*Password:* ```{resJson['password']}```"
-            except requests.exceptions.Timeout:
-                return "Timeout occured in getting response from backend" 
-            except requests.exceptions.HTTPError as err:
-                return err.response.json().get("error","unknown http error")
-            except requests.exceptions.RequestException as err:
-                return "Requests exceptions\n"+str(err)
-            except Exception as e:
-                return "All other exceptions\n"+str(e)
+                return f"Any expception in handling http error\n {str(e)}"
+        except requests.exceptions.ConnectionError as err:
+            return f"Connection error\n{str(err)}"
+        except requests.exceptions.RequestException as err:
+            return "Requests exceptions\n"+str(err)
+        except Exception as e:
+            return "All other exceptions\n"+str(e)
         else:
-            return "hello i am static"
-    except Exception  as e:
-        return "all other outter exceptions\n" +str(e)
-    
+            if res.content:
+                try:
+                    resJson=res.json()
+                except ValueError as e:
+                    return f"JSON decode error: {str(e)}"
+            else:
+                return "Empty response from server"
+            sites = resJson["sites"]
+            ans=""
+            for item in sites:
+                ans+=(item["site"]+"\n")
+            return ans
+    elif response.count(" ")==0 and all(item in response for item in ["www."]):
+        response= response.lstrip("https://")
+        response= response.lstrip("http://")
+        data= {
+            "wa_id" : wa_id,
+            "site": response
+        }
+        payload = f"{wa_id}:{response}"
+        try:
+            token = generate_token(payload)
+        except Exception as e:
+            return "Unable to generate token\n"+str(e)
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        try:
+            res = requests.post(f"{current_app.config['BACKEND_URL']}/api/whatsapp/password",json=data, headers=headers, timeout=60)
+            res.raise_for_status()
+        except requests.exceptions.Timeout:
+            return "Timeout occured in getting response from backend"
+        except requests.exceptions.HTTPError as err:
+            try:
+                return err.response.json().get("error", "unknown HTTP error")
+            except ValueError:
+                return f"Value error in handling http error\n{err.response.text}"
+            except Exception as e:
+                return f"Any expception in handling http error\n {str(e)}"
+        except requests.exceptions.ConnectionError as err:
+            return f"Connection error\n{str(err)}"
+        except requests.exceptions.RequestException as err:
+            return "Requests exceptions\n"+str(err)
+        except Exception as e:
+            return "All other exceptions\n"+str(e)
+        else:
+            if res.content:
+                try:
+                    resJson=res.json()
+                except ValueError as e:
+                    return f"JSON decode error: {str(e)}"
+            else:
+                return "Empty response from server"
+            return f"*Site:* {resJson['site']}\n*Username:* ```{resJson['username']}```\n*Password:* ```{resJson['password']}```"
+    elif all(item in response for item in ["command"]) and any(item in response for item in ["show", "display","view","list"]):
+        return "- *all site*: To get a list of all website for which you have stored passwords.\n- *www.siteName.com*: To get username and password associated with this site."
+    else:
+        return f"Hey! I am a whatsapp bot.\nI will help you in *managing your passwords*.\nYou can visit our site *{current_app.config['BACKEND_URL']}* to manage your passwords more effectively.\nTo view all commands, message me ```show commands```"
 
 
 def send_message(data):
